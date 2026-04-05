@@ -24,26 +24,17 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Cache Gradle dependencies
+      - name: Cache Maven dependencies
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('backend/**/*.gradle*', 'backend/**/gradle-wrapper.properties') }}
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('backend/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-maven-
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x backend/gradlew
-
-      - name: Build backend
+      - name: Build and test backend
         working-directory: backend
-        run: ./gradlew build
-
-      - name: Run tests
-        working-directory: backend
-        run: ./gradlew test
+        run: ./mvnw clean verify
 
   commitlint:
     name: Lint Commit Messages

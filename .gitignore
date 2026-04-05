@@ -8,10 +8,7 @@
 # ========================
 # Java / Spring Boot
 # ========================
-backend/build/
-backend/.gradle/
-backend/bin/
-backend/out/
+backend/target/
 *.class
 *.jar
 *.war
