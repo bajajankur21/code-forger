@@ -1,0 +1,44 @@
+# ========================
+# Secrets & Environment
+# ========================
+.env
+.env.*
+!.env.example
+
+# ========================
+# Java / Spring Boot
+# ========================
+backend/build/
+backend/.gradle/
+backend/bin/
+backend/out/
+*.class
+*.jar
+*.war
+
+# ========================
+# Node.js / Frontend
+# ========================
+node_modules/
+dist/
+.cache/
+*.tgz
+
+# ========================
+# IDE & OS
+# ========================
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+
+# ========================
+# Logs & Temp
+# ========================
+*.log
+tmp/
+temp/
