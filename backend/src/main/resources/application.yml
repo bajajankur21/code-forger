@@ -1,6 +1,14 @@
 spring:
   application:
     name: code-forger-backend
+  ai:
+    google:
+      genai:
+        api-key: ${GOOGLE_AI_API_KEY:placeholder-not-a-real-key}
+        chat:
+          options:
+            model: gemma-4-31b-it
+            temperature: 0.2
 
 server:
   port: ${PORT:8080}
