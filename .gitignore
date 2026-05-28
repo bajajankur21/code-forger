@@ -31,3 +31,13 @@ Thumbs.db
 *.log
 tmp/
 temp/
+
+# ========================
+# Node (commitlint/husky tooling)
+# ========================
+node_modules/
+
+# ========================
+# Local progress tracker (not shared)
+# ========================
+Progress.md
