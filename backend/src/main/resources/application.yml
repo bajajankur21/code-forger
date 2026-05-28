@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: code-forger-backend
+
+server:
+  port: ${PORT:8080}
