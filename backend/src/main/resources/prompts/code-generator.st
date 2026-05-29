@@ -27,5 +27,3 @@ No prose, no markdown fences, no explanation — only the JSON object.
 
 SCHEMA:
 {schema}
-SCHEMA:
-{schema}
