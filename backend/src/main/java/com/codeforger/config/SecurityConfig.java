@@ -32,7 +32,7 @@ public class SecurityConfig implements WebMvcConfigurer {
     public static class PasscodeFilter extends OncePerRequestFilter {
         private final String passcode;
 
-        public PasscodeFilter(@Value("${APP_SECRET_PASSCODE:dev-secret}") String passcode) {
+        public PasscodeFilter(@Value("${APP_SECRET_PASSCODE}") String passcode) {
             this.passcode = passcode;
         }
 

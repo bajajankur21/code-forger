@@ -18,7 +18,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Value("${APP_SECRET_PASSCODE:dev-secret}")
+    @Value("${APP_SECRET_PASSCODE}")
     private String passcode;
 
     @Override

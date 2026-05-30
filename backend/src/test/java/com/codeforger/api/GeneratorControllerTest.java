@@ -18,13 +18,16 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "codeforger.orchestrator.enabled=false")
+@SpringBootTest(properties = {
+    "codeforger.orchestrator.enabled=false",
+    "APP_SECRET_PASSCODE=test-secret"
+})
 @AutoConfigureMockMvc
 class GeneratorControllerTest {
 
     private static final String JOB_PATH_REGEX =
             "/api/jobs/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-    private static final String TEST_PASSCODE = "dev-secret";
+    private static final String TEST_PASSCODE = "test-secret";
 
     @Autowired
     private MockMvc mockMvc;
