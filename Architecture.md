@@ -430,7 +430,9 @@ Google AI Studio free tier covers this comfortably for development.
 
 ---
 
-## Part 5: Deployment
+## Part 5: Deployment & Security
+
+### Infrastructure
 
 | Component | Platform | Cost |
 |---|---|---|
@@ -441,6 +443,29 @@ Google AI Studio free tier covers this comfortably for development.
 | LLM (Gemma 4 31B) | Google AI Studio | Free tier |
 
 **Total infrastructure cost: $0/month**
+
+### Backend Containerization (The Fat-Jar Classpath Solution)
+
+Deploying the Spring Boot backend on a PaaS (like Railway) presents two challenges for the in-process `JavaCompiler`:
+1. It requires a JDK, not a JRE.
+2. It requires an explicit `-classpath` containing all dependencies. When run as `java -jar app.jar`, `System.getProperty("java.class.path")` only contains the launcher JAR, causing the compiler to fail to find Spring/JPA symbols.
+
+**Solution:** A multi-stage `Dockerfile` that targets `eclipse-temurin:21-jdk`. It extracts the Spring Boot layered jar using `jarmode=layertools` and boots the application with an exploded classpath:
+`java -cp "application/BOOT-INF/classes:application/BOOT-INF/lib/*" ...`
+This expands the dependencies directly onto `java.class.path`, allowing the `ValidatorAgent` to function identically to local `mvn spring-boot:run` execution.
+
+### Continuous Deployment (CD)
+
+Backend deployments are automated via GitHub Actions (`cd.yml`). On push to `master` (and after `ci.yml` passes), the workflow uses a Railway deployment action or CLI, authenticated via a repository secret (`RAILWAY_TOKEN`), to build and roll out the new Docker container.
+
+### Authentication & CORS
+
+Because the MFE frontends are statically hosted on GitHub Pages, we cannot bake an API key into them securely. To prevent unauthorized usage of the Google AI Studio free tier:
+- **Passcode Auth:** A shared secret (`APP_SECRET_PASSCODE`) is defined in the backend environment.
+- **REST:** A Spring `OncePerRequestFilter` intercepts `/api/**` requests and requires an `X-API-Key` or `Authorization` header matching the passcode.
+- **WebSocket:** A STOMP `ChannelInterceptor` reads the passcode from native connection headers and disconnects unauthenticated WebSocket sessions.
+- **Frontend:** The Agent Console MFE provides a simple UI for the user to enter this passcode once, storing it in `localStorage` for subsequent calls.
+- **CORS:** A global `WebMvcConfigurer` and updated `StompEndpointRegistry` explicitly allow traffic from `https://*.github.io`.
 
 ---
 
