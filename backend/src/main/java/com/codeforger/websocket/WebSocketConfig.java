@@ -14,6 +14,9 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
@@ -42,7 +45,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
                     String providedPasscode = accessor.getFirstNativeHeader("X-API-Key");
-                    if (!passcode.equals(providedPasscode)) {
+                    if (providedPasscode == null || !MessageDigest.isEqual(
+                            passcode.getBytes(StandardCharsets.UTF_8),
+                            providedPasscode.getBytes(StandardCharsets.UTF_8))) {
                         throw new IllegalArgumentException("Invalid WebSocket Passcode");
                     }
                 }
