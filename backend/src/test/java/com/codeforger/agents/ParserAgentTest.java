@@ -2,10 +2,12 @@ package com.codeforger.agents;
 
 import com.codeforger.model.ApiSchema;
 import org.junit.jupiter.api.Test;
-import org.mockito.invocation.InvocationOnMock;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -13,6 +15,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,8 +41,16 @@ class ParserAgentTest {
                 ))),
                 List.of(new ApiSchema.Endpoint("/pets", "POST", "Pet", ApiSchema.Operation.CREATE))
         );
+        String json = """
+                {"basePackage":"com.petstore",
+                 "entities":[{"name":"Pet","fields":[
+                   {"name":"id","type":"Long","required":true},
+                   {"name":"name","type":"String","required":true}]}],
+                 "endpoints":[{"path":"/pets","method":"POST",
+                   "entity":"Pet","operation":"CREATE"}]}
+                """;
 
-        ParserAgent agent = newAgent(mockChatClientReturning(expected), mockHttpClient());
+        ParserAgent agent = newAgent(mockChatClient(() -> responseOf(json)), mockHttpClient());
         ApiSchema result = agent.parse(SPEC_URL);
 
         assertThat(result).isEqualTo(expected);
@@ -47,22 +58,22 @@ class ParserAgentTest {
 
     @Test
     void parse_retriesTransientLlmFailure_thenSucceeds() {
-        ApiSchema schema = new ApiSchema("com.x", List.of(), List.of());
+        String json = "{\"basePackage\":\"com.x\",\"entities\":[],\"endpoints\":[]}";
         AtomicInteger calls = new AtomicInteger();
 
-        ChatClient chatClient = mockChatClient(invocation -> {
+        ChatClient chatClient = mockChatClient(() -> {
             if (calls.incrementAndGet() == 1) throw new RuntimeException("503 service unavailable");
-            return schema;
+            return responseOf(json);
         });
 
         ParserAgent agent = newAgent(chatClient, mockHttpClient());
-        assertThat(agent.parse(SPEC_URL)).isEqualTo(schema);
+        assertThat(agent.parse(SPEC_URL).basePackage()).isEqualTo("com.x");
         assertThat(calls.get()).isEqualTo(2);
     }
 
     @Test
     void parse_failsFastOnUnparseableLlmOutput() {
-        ChatClient chatClient = mockChatClient(inv -> { throw new RuntimeException("could not parse json"); });
+        ChatClient chatClient = mockChatClient(() -> responseOf("this is not json at all"));
 
         ParserAgent agent = newAgent(chatClient, mockHttpClient());
         assertThatThrownBy(() -> agent.parse(SPEC_URL))
@@ -95,18 +106,18 @@ class ParserAgentTest {
         return builder.build();
     }
 
-    private static ChatClient mockChatClientReturning(ApiSchema schema) {
-        return mockChatClient(inv -> schema);
+    private static ChatResponse responseOf(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
     }
 
-    private static ChatClient mockChatClient(java.util.function.Function<InvocationOnMock, ApiSchema> answer) {
+    private static ChatClient mockChatClient(Supplier<ChatResponse> answer) {
         ChatClient client = mock(ChatClient.class);
         ChatClientRequestSpec reqSpec = mock(ChatClientRequestSpec.class);
         CallResponseSpec callSpec = mock(CallResponseSpec.class);
         when(client.prompt()).thenReturn(reqSpec);
         when(reqSpec.user(any(String.class))).thenReturn(reqSpec);
         when(reqSpec.call()).thenReturn(callSpec);
-        when(callSpec.entity(ApiSchema.class)).thenAnswer(invocation -> answer.apply(invocation));
+        when(callSpec.chatResponse()).thenAnswer(invocation -> answer.get());
         return client;
     }
 }

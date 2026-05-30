@@ -1,6 +1,6 @@
-# CLAUDE.md — Code Forger
+# AGENTS.md — Code Forger
 
-This file is the single source of truth for Claude Code.
+This file is the single source of truth for Codex.
 Read this file at the start of every session before doing anything.
 Read PROGRESS.md immediately after to know exactly where to resume.
 
@@ -12,7 +12,7 @@ Code Forger is a multi-agent AI system with:
 - 3 separate React MFE apps deployed on GitHub Pages
   using Webpack Module Federation
 - 1 Spring Boot backend deployed on Railway
-- A 3-agent AI pipeline (Parser → Code Generator → Validator)
+- A 3-agent AI pipeline (Parser -> Code Generator -> Validator)
   using Spring AI + Gemma 4 31B via Google AI Studio
 - Real-time WebSocket streaming of agent status
 - Self-correction reflection loop in the Validator agent
@@ -44,10 +44,10 @@ Read it if you need context on any decision.
 
 ## Session Start Protocol
 
-Every time a new Claude Code session begins:
+Every time a new Codex session begins:
 
-```
-Step 1: Read this file (CLAUDE.md)
+```text
+Step 1: Read this file (AGENTS.md)
 Step 2: Read PROGRESS.md
 Step 3: Read ARCHITECTURE.md if context is needed
 Step 4: State out loud:

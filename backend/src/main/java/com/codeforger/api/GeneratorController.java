@@ -3,9 +3,7 @@ package com.codeforger.api;
 import com.codeforger.dto.GenerateRequest;
 import com.codeforger.dto.JobStatusResponse;
 import com.codeforger.model.GenerationJob;
-import com.codeforger.model.JobStatus;
 import com.codeforger.queue.JobQueue;
-import com.codeforger.websocket.StatusBroadcaster;
 import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
@@ -21,18 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class GeneratorController {
 
     private final JobQueue jobQueue;
-    private final StatusBroadcaster broadcaster;
 
-    public GeneratorController(JobQueue jobQueue, StatusBroadcaster broadcaster) {
+    public GeneratorController(JobQueue jobQueue) {
         this.jobQueue = jobQueue;
-        this.broadcaster = broadcaster;
     }
 
     @PostMapping("/generate")
     public ResponseEntity<JobStatusResponse> generate(@Valid @RequestBody GenerateRequest request) {
         GenerationJob job = jobQueue.submit(request.specUrl());
-        // TODO(step-15): move this broadcast into AgentOrchestrator once it exists.
-        broadcaster.broadcast(job.getId(), JobStatus.QUEUED, "Job queued");
         return ResponseEntity
                 .accepted()
                 .location(URI.create("/api/jobs/" + job.getId()))

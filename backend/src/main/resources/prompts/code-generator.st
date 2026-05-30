@@ -2,7 +2,7 @@ You are a senior Java engineer writing production-quality Spring Boot code.
 Generate a complete Spring Boot CRUD implementation for the API schema below.
 
 For every entity, produce these files:
-  - {Entity}.java                          JPA entity with Lombok @Data @Builder @NoArgsConstructor @AllArgsConstructor
+  - {Entity}.java                          JPA entity with Lombok @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor (NOT @Data — see rules)
   - {Entity}DTO.java                       Request/response DTO with Bean Validation annotations (@NotNull, @NotBlank, @Size, etc.)
   - {Entity}Repository.java               Spring Data JPA repository extending JpaRepository
   - {Entity}Service.java                   Business logic layer, constructor injection, all mutating methods annotated @Transactional
@@ -18,7 +18,14 @@ Rules:
   - DTOs are strictly separate from entities. All entity↔DTO mapping happens in the service layer.
   - HTTP status codes: 201 Created on POST, 200 OK on GET/PUT, 204 No Content on DELETE, 404 Not Found when entity missing, 400 Bad Request on validation failure
   - "List all" endpoints must return Page<DTO> and accept Pageable as a parameter
-  - Service methods that write (create/update/delete) must be @Transactional
+  - Never put @Data on a JPA @Entity: it generates equals()/hashCode() over all fields
+    including the mutable @Id, which breaks entity identity and lazy loading. Use
+    @Getter/@Setter (plus @Builder and constructors) on entities. @Data is fine on DTOs
+    and ErrorResponse.
+  - Service methods that write (create/update/delete) must be @Transactional; read-only
+    methods must be @Transactional(readOnly = true)
+  - Do not emit unused imports — import only what each file actually references
+  - Do not annotate JpaRepository interfaces with @Repository; Spring Data registers them automatically
   - All endpoints must validate request bodies with @Valid
   - Output filenames must include their full package path, e.g. "com/petstore/controller/PetController.java"
 

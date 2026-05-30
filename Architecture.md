@@ -232,7 +232,7 @@ spring:
         options:
           model: gemma-4-31b-it
           temperature: 0.2      # low temp for deterministic code
-          max-tokens: 8192
+          max-tokens: 32768     # model's max output; reasoning trace + JSON answer share this budget
 ```
 
 ---
@@ -347,6 +347,72 @@ public void process(GenerationJob job) {
   broadcast(job.getId(), "Done. " + files.size() + " files generated.");
 }
 ```
+
+---
+
+## Part 3.5: Production Hardening & Optimizations
+
+Notes from the first working end-to-end run (2026-05-30). The pipeline is
+proven on small specs; these items make it robust and scalable.
+
+### Reasoning-model output handling (implemented)
+
+`gemma-4-31b-it` is a **reasoning model**. Each response contains the thinking
+trace and the final answer as **separate parts**, which Spring AI surfaces as
+separate `Generation`s (thought first, answer last). Spring AI's `.entity()`
+reads only the first generation, so it returns the *thought* and parsing fails.
+Thinking cannot be disabled on this model (`thinkingBudget=0` → HTTP 400) and
+`includeThoughts=false` is ignored.
+
+Resolution: agents call `.chatResponse()` and pass the result to
+`StructuredOutput.parse(...)`, which walks generations **back-to-front** and
+returns the first that parses via `BeanOutputConverter`. This keeps Spring AI
+and keeps reasoning on (quality). Note the live property namespace is
+`spring.ai.google.genai.*` (the snippet above is illustrative).
+
+### Output token budget & chunked generation (PLANNED)
+
+`max-tokens` (32768, the model's ceiling) is the budget for the **reasoning
+trace + the JSON answer combined**. Generating all files for a multi-entity
+spec in one call overruns it:
+
+> Observed: the full Swagger Petstore (6 entities, 19 endpoints) **parsed fine**
+> at 32K, but the single generation call producing ~34 files never returned
+> (>16 min, no truncation error — it simply could not finish within budget/time).
+
+The single-shot generator does not scale past a few entities. It also breaks the
+reflection loop: `correct()` re-sends *all* files, so corrections overrun the
+budget too.
+
+**Plan — generate per entity:**
+
+- One LLM call per entity producing just its slice (`Entity`, `DTO`,
+  `Repository`, `Service`, `Controller`). Small input + output → fits with room
+  for reasoning.
+- Shared, entity-independent files (`Application`, `GlobalExceptionHandler`,
+  `ErrorResponse`, `ResourceNotFoundException`) generated once or templated.
+- Merge all slices into one `GeneratedCode`, then validate the **whole set
+  together** so cross-file references resolve.
+- Correction operates per entity/file so it never re-sends everything.
+- Bonus: smaller calls are faster and can self-correct independently.
+
+### LLM call timeouts (PLANNED)
+
+The chat client has **no read/connect timeout**. A stalled or oversized call
+blocks the single orchestrator worker thread indefinitely (observed: a full
+Petstore generation hung >16 min with no way to abort). Add explicit
+connect/read timeouts to the underlying HTTP client so a hung call fails fast,
+surfaces as a job error, and frees the worker for the next job.
+
+### Validator classpath (implemented)
+
+The `ValidatorAgent` compiles generated code in-process against the **backend's
+own** classpath (`System.getProperty("java.class.path")`). It must therefore
+carry every dependency the generated code targets — `spring-boot-starter-data-jpa`
+(JPA, Spring Data, `@Transactional`), Lombok (compile scope so its annotation
+processor is present at runtime), plus H2 so the backend still boots with the JPA
+starter. A missing dependency shows up as phantom "cannot find symbol" errors that
+the reflection loop can never fix.
 
 ---
 
