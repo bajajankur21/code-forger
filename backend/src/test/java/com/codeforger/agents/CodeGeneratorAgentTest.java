@@ -4,15 +4,18 @@ import com.codeforger.model.ApiSchema;
 import com.codeforger.model.GeneratedCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.core.io.ByteArrayResource;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,19 +39,22 @@ class CodeGeneratorAgentTest {
         GeneratedCode expected = new GeneratedCode(Map.of(
                 "com/petstore/entity/Pet.java", "package com.petstore.entity; public class Pet {}"
         ));
+        String json = "{\"files\":{\"com/petstore/entity/Pet.java\":"
+                + "\"package com.petstore.entity; public class Pet {}\"}}";
 
-        CodeGeneratorAgent agent = newAgent(mockChatClientReturning(expected));
+        CodeGeneratorAgent agent = newAgent(mockChatClient(() -> responseOf(json)));
         assertThat(agent.generate(SCHEMA)).isEqualTo(expected);
     }
 
     @Test
     void generate_retriesTransientLlmFailure_thenSucceeds() {
         GeneratedCode out = new GeneratedCode(Map.of("X.java", "class X {}"));
+        String json = "{\"files\":{\"X.java\":\"class X {}\"}}";
         AtomicInteger calls = new AtomicInteger();
 
-        ChatClient chatClient = mockChatClient(inv -> {
+        ChatClient chatClient = mockChatClient(() -> {
             if (calls.incrementAndGet() == 1) throw new RuntimeException("504 timeout");
-            return out;
+            return responseOf(json);
         });
 
         CodeGeneratorAgent agent = newAgent(chatClient);
@@ -58,7 +64,7 @@ class CodeGeneratorAgentTest {
 
     @Test
     void generate_failsFastOnUnparseableLlmOutput() {
-        ChatClient chatClient = mockChatClient(inv -> { throw new RuntimeException("could not parse json"); });
+        ChatClient chatClient = mockChatClient(() -> responseOf("this is not json at all"));
 
         CodeGeneratorAgent agent = newAgent(chatClient);
         assertThatThrownBy(() -> agent.generate(SCHEMA))
@@ -76,6 +82,7 @@ class CodeGeneratorAgentTest {
         GeneratedCode fixed = new GeneratedCode(Map.of(
                 "Pet.java", "class Pet { int id; }"
         ));
+        String json = "{\"files\":{\"Pet.java\":\"class Pet { int id; }\"}}";
 
         ChatClient chatClient = mock(ChatClient.class);
         ChatClientRequestSpec reqSpec = mock(ChatClientRequestSpec.class);
@@ -84,7 +91,7 @@ class CodeGeneratorAgentTest {
         when(chatClient.prompt()).thenReturn(reqSpec);
         when(reqSpec.user(prompt.capture())).thenReturn(reqSpec);
         when(reqSpec.call()).thenReturn(callSpec);
-        when(callSpec.entity(GeneratedCode.class)).thenReturn(fixed);
+        when(callSpec.chatResponse()).thenReturn(responseOf(json));
 
         CodeGeneratorAgent agent = newAgent(chatClient);
         GeneratedCode result = agent.correct(previous, errors);
@@ -93,7 +100,7 @@ class CodeGeneratorAgentTest {
         assertThat(prompt.getValue()).contains("class Pet { int id }");
         assertThat(prompt.getValue()).contains("Pet.java:1");
         assertThat(prompt.getValue()).contains("';' expected");
-        verify(callSpec).entity(GeneratedCode.class);
+        verify(callSpec).chatResponse();
     }
 
     // --- helpers -------------------------------------------------------
@@ -104,18 +111,18 @@ class CodeGeneratorAgentTest {
         return new CodeGeneratorAgent(chatClient, gen, cor);
     }
 
-    private static ChatClient mockChatClientReturning(GeneratedCode out) {
-        return mockChatClient(inv -> out);
+    private static ChatResponse responseOf(String text) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
     }
 
-    private static ChatClient mockChatClient(java.util.function.Function<InvocationOnMock, GeneratedCode> answer) {
+    private static ChatClient mockChatClient(Supplier<ChatResponse> answer) {
         ChatClient client = mock(ChatClient.class);
         ChatClientRequestSpec reqSpec = mock(ChatClientRequestSpec.class);
         CallResponseSpec callSpec = mock(CallResponseSpec.class);
         when(client.prompt()).thenReturn(reqSpec);
         when(reqSpec.user(any(String.class))).thenReturn(reqSpec);
         when(reqSpec.call()).thenReturn(callSpec);
-        when(callSpec.entity(GeneratedCode.class)).thenAnswer(invocation -> answer.apply(invocation));
+        when(callSpec.chatResponse()).thenAnswer(invocation -> answer.get());
         return client;
     }
 }

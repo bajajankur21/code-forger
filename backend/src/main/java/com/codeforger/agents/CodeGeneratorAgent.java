@@ -3,6 +3,8 @@ package com.codeforger.agents;
 import com.codeforger.model.ApiSchema;
 import com.codeforger.model.GeneratedCode;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.retry.backoff.ExponentialBackOffPolicy;
@@ -22,6 +24,7 @@ public class CodeGeneratorAgent {
     private final RetryTemplate retryTemplate;
     private final String generatePrompt;
     private final String correctPrompt;
+    private final BeanOutputConverter<GeneratedCode> outputConverter;
 
     public CodeGeneratorAgent(
             ChatClient chatClient,
@@ -32,6 +35,7 @@ public class CodeGeneratorAgent {
         this.retryTemplate = buildRetryTemplate();
         this.generatePrompt = readResource(generatePromptResource);
         this.correctPrompt = readResource(correctPromptResource);
+        this.outputConverter = new BeanOutputConverter<>(GeneratedCode.class);
     }
 
     public GeneratedCode generate(ApiSchema schema) {
@@ -47,12 +51,17 @@ public class CodeGeneratorAgent {
     }
 
     private GeneratedCode callLlm(String prompt) {
+        // Append the JSON-schema instruction (replacing what .entity() did) and
+        // read the full response — a reasoning model returns the answer as a
+        // later generation, which StructuredOutput selects over the thought.
+        String promptWithFormat = prompt + System.lineSeparator() + outputConverter.getFormat();
         return retryTemplate.execute(ctx -> {
             try {
-                return chatClient.prompt()
-                        .user(prompt)
+                ChatResponse response = chatClient.prompt()
+                        .user(promptWithFormat)
                         .call()
-                        .entity(GeneratedCode.class);
+                        .chatResponse();
+                return StructuredOutput.parse(response, outputConverter);
             } catch (RuntimeException e) {
                 if (isTransient(e)) throw e;
                 throw new CodeGenerationException("LLM returned unusable output", e);

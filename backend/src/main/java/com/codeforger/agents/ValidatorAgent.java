@@ -83,7 +83,9 @@ public class ValidatorAgent {
 
             List<String> options = List.of(
                     "-classpath", System.getProperty("java.class.path"),
-                    "-proc:none"
+                    // -proc:full runs annotation processors found on the classpath
+                    // (Lombok) so generated @Data/@Builder members exist at compile time.
+                    "-proc:full"
             );
 
             boolean ok = compiler.getTask(

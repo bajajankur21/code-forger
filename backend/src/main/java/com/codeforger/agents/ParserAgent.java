@@ -2,6 +2,8 @@ package com.codeforger.agents;
 
 import com.codeforger.model.ApiSchema;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.retry.backoff.ExponentialBackOffPolicy;
@@ -21,6 +23,7 @@ public class ParserAgent {
     private final RestClient httpClient;
     private final RetryTemplate retryTemplate;
     private final String promptTemplate;
+    private final BeanOutputConverter<ApiSchema> outputConverter;
 
     public ParserAgent(
             ChatClient chatClient,
@@ -31,18 +34,24 @@ public class ParserAgent {
         this.httpClient = httpClient;
         this.retryTemplate = buildRetryTemplate();
         this.promptTemplate = readResource(promptResource);
+        this.outputConverter = new BeanOutputConverter<>(ApiSchema.class);
     }
 
     public ApiSchema parse(String specUrl) {
         String spec = fetchSpec(specUrl);
-        String prompt = promptTemplate.replace("{spec}", spec);
+        // Append the JSON-schema instruction ourselves (this is what .entity()
+        // did implicitly); we no longer use .entity() because it reads only the
+        // first generation, which on a reasoning model is the thinking trace.
+        String prompt = promptTemplate.replace("{spec}", spec)
+                + System.lineSeparator() + outputConverter.getFormat();
 
         return retryTemplate.execute(ctx -> {
             try {
-                return chatClient.prompt()
+                ChatResponse response = chatClient.prompt()
                         .user(prompt)
                         .call()
-                        .entity(ApiSchema.class);
+                        .chatResponse();
+                return StructuredOutput.parse(response, outputConverter);
             } catch (RuntimeException e) {
                 if (isTransient(e)) throw e;
                 throw new SpecParseException("LLM returned unusable output", e);
