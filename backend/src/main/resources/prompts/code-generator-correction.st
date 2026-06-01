@@ -12,6 +12,9 @@ STRICT RULES:
   - Do NOT introduce new logic, new endpoints, or new dependencies not present 
     in the original code.
   - If fixing an error in file A requires a change in file B, change both.
+  - Note: Shared files (Application, GlobalExceptionHandler, etc.) are managed 
+    programmatically. If you see an error in them, fix it, but prioritize fixing 
+    the generated entity/service/controller code first.
 
 OUTPUT FORMAT:
   - A single JSON object: filename -> complete corrected Java source.

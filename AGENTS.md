@@ -121,16 +121,18 @@ Each phase below specifies which repo is active.
 ### PHASE 2 — Spring AI + Agent Pipeline
 **Active repo: code-forger-backend**
 
-- [ ] Step 11 — Google AI / Gemma 4 dependency config +
+- [x] Step 11 — Google AI / Gemma 4 dependency config +
          application.yml + AiConfig.java
-- [ ] Step 12 — Agent 1: Parser agent
+- [x] Step 12 — Agent 1: Parser agent
          (prompt engineering explained in depth)
-- [ ] Step 13 — Agent 2: Code Generator agent
+- [x] Step 13 — Agent 2: Code Generator agent
          (prompt engineering explained in depth)
-- [ ] Step 14 — Agent 3: Validator agent
+- [x] Step 14 — Agent 3: Validator agent
          (sandboxed Java compilation + reflection loop)
-- [ ] Step 15 — Orchestrator wiring all 3 agents +
+- [x] Step 15 — Orchestrator wiring all 3 agents +
          WebSocket status broadcasting throughout
+- [x] Step 15.5 — Hugging Face Spaces Deployment & Security
+- [x] Step 15.6 — Chunked Per-Entity Generation & Rate Limiting
 
 ### PHASE 3 — Shell Application
 **Active repo: code-forger-shell (new repo)**

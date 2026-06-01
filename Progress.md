@@ -8,13 +8,18 @@ Read at the start of every session.
 
 ## 📊 Overall Progress
 
-**Steps completed:** 16 / 25
-**Current phase:** Deployment & Shell setup
+**Steps completed:** 17 / 25
+**Current phase:** Shell setup
 **Next step:** Step 16 — Shell app + Module Federation config
 
 ---
 
 ## ✅ Completed Steps
+
+### Step 15.6 — Chunked Per-Entity Generation & Rate Limiting
+- Status: DONE
+- Notes: Refactored CodeGeneratorAgent to generate code one entity at a time, preventing token budget overruns. Implemented deterministic templating for shared boilerplate (Application, Exceptions). Added a proactive 4s throttler (15 RPM) to prevent Google AI rate limiting. Verified with refactored unit tests.
+- Completed: 2026-06-01
 
 ### Step 15.5 — Hugging Face Spaces Deployment & Security
 - Status: DONE

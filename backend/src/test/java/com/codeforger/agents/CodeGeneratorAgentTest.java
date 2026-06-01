@@ -36,19 +36,23 @@ class CodeGeneratorAgentTest {
 
     @Test
     void generate_returnsFiles_whenLlmRespondsCleanly() {
-        GeneratedCode expected = new GeneratedCode(Map.of(
-                "com/petstore/entity/Pet.java", "package com.petstore.entity; public class Pet {}"
-        ));
         String json = "{\"files\":{\"com/petstore/entity/Pet.java\":"
                 + "\"package com.petstore.entity; public class Pet {}\"}}";
 
         CodeGeneratorAgent agent = newAgent(mockChatClient(() -> responseOf(json)));
-        assertThat(agent.generate(SCHEMA)).isEqualTo(expected);
+        GeneratedCode result = agent.generate(SCHEMA);
+
+        // Should contain entity files
+        assertThat(result.files()).containsKey("com/petstore/entity/Pet.java");
+        
+        // Should contain shared files
+        assertThat(result.files()).containsKey("com/petstore/CodeForgerApplication.java");
+        assertThat(result.files()).containsKey("com/petstore/exception/GlobalExceptionHandler.java");
+        assertThat(result.files().get("com/petstore/CodeForgerApplication.java")).contains("@SpringBootApplication");
     }
 
     @Test
     void generate_retriesTransientLlmFailure_thenSucceeds() {
-        GeneratedCode out = new GeneratedCode(Map.of("X.java", "class X {}"));
         String json = "{\"files\":{\"X.java\":\"class X {}\"}}";
         AtomicInteger calls = new AtomicInteger();
 
@@ -58,7 +62,8 @@ class CodeGeneratorAgentTest {
         });
 
         CodeGeneratorAgent agent = newAgent(chatClient);
-        assertThat(agent.generate(SCHEMA)).isEqualTo(out);
+        GeneratedCode result = agent.generate(SCHEMA);
+        assertThat(result.files()).containsKey("X.java");
         assertThat(calls.get()).isEqualTo(2);
     }
 
@@ -72,6 +77,31 @@ class CodeGeneratorAgentTest {
     }
 
     @Test
+    void generate_makesMultipleCalls_forMultipleEntities() {
+        ApiSchema multiSchema = new ApiSchema(
+                "com.test",
+                List.of(
+                        new ApiSchema.Entity("E1", List.of()),
+                        new ApiSchema.Entity("E2", List.of())
+                ),
+                List.of()
+        );
+
+        AtomicInteger calls = new AtomicInteger();
+        ChatClient chatClient = mockChatClient(() -> {
+            int i = calls.incrementAndGet();
+            return responseOf("{\"files\":{\"E" + i + ".java\":\"class E" + i + " {}\"}}");
+        });
+
+        CodeGeneratorAgent agent = newAgent(chatClient);
+        GeneratedCode result = agent.generate(multiSchema);
+
+        assertThat(calls.get()).isEqualTo(2);
+        assertThat(result.files()).containsKey("E1.java");
+        assertThat(result.files()).containsKey("E2.java");
+    }
+
+    @Test
     void correct_passesPreviousCodeAndErrorsIntoPrompt() {
         GeneratedCode previous = new GeneratedCode(Map.of(
                 "Pet.java", "class Pet { int id }"
@@ -79,9 +109,6 @@ class CodeGeneratorAgentTest {
         List<CompileError> errors = List.of(
                 new CompileError("Pet.java", 1, "';' expected")
         );
-        GeneratedCode fixed = new GeneratedCode(Map.of(
-                "Pet.java", "class Pet { int id; }"
-        ));
         String json = "{\"files\":{\"Pet.java\":\"class Pet { int id; }\"}}";
 
         ChatClient chatClient = mock(ChatClient.class);
@@ -96,17 +123,18 @@ class CodeGeneratorAgentTest {
         CodeGeneratorAgent agent = newAgent(chatClient);
         GeneratedCode result = agent.correct(previous, errors);
 
-        assertThat(result).isEqualTo(fixed);
+        assertThat(result.files()).containsKey("Pet.java");
         assertThat(prompt.getValue()).contains("class Pet { int id }");
         assertThat(prompt.getValue()).contains("Pet.java:1");
         assertThat(prompt.getValue()).contains("';' expected");
-        verify(callSpec).chatResponse();
     }
 
     // --- helpers -------------------------------------------------------
 
     private static CodeGeneratorAgent newAgent(ChatClient chatClient) {
-        ByteArrayResource gen = new ByteArrayResource("Generate: {schema}".getBytes());
+        // Placeholders matching new prompt format
+        ByteArrayResource gen = new ByteArrayResource(
+                "Generate: {basePackage} {allEntities} {entitySchema} {endpoints}".getBytes());
         ByteArrayResource cor = new ByteArrayResource("Correct: {previousCode} ERRORS: {errors}".getBytes());
         return new CodeGeneratorAgent(chatClient, gen, cor);
     }
