@@ -108,7 +108,7 @@ Each phase below specifies which repo is active.
 - [x] Step 13 — Agent 2: Code Generator agent
 - [x] Step 14 — Agent 3: Validator agent
 - [x] Step 15 — Orchestrator wiring + WebSocket broadcasting
-- [ ] Step 15.5 — **Hugging Face Spaces Deployment Architecture** (In Progress)
+- [x] Step 15.6 — Chunked Per-Entity Generation & Rate Limiting
 
 ### PHASE 3 — Shell Application
 **Active repo: code-forger-shell (new repo)**

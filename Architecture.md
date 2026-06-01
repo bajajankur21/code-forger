@@ -274,19 +274,18 @@ Schema format:
   on retry)
 **Output:** Map of filename → Java source code string
 
-**What it generates:**
+**What it generates (Per Entity Slice):**
 - `{Entity}Controller.java` — REST controller with full CRUD
 - `{Entity}Service.java` — service layer with business logic
 - `{Entity}Repository.java` — Spring Data JPA repository
 - `{Entity}DTO.java` — request/response DTOs
 - `{Entity}.java` — JPA entity with Lombok annotations
 
-**Code standards enforced via prompt:**
-- Lombok for boilerplate (`@Data`, `@Builder`, `@NoArgsConstructor`)
-- Constructor injection (not field injection)
-- DTO separation (no entity in response)
-- `ResponseEntity<>` return types on controllers
-- Proper HTTP status codes
+**Deterministic Shared Files (Java Templates):**
+- `{Application}.java`, `GlobalExceptionHandler.java`, `ErrorResponse.java`, `ResourceNotFoundException.java` are generated programmatically via Java templates to save tokens and ensure consistency.
+
+**Throttling:**
+- Implements a proactive **15 RPM (4s interval) throttler** to ensure compliance with Google AI free tier rate limits.
 
 ### Agent 3 — The Validator (Reflection Loop)
 
@@ -370,31 +369,22 @@ returns the first that parses via `BeanOutputConverter`. This keeps Spring AI
 and keeps reasoning on (quality). Note the live property namespace is
 `spring.ai.google.genai.*` (the snippet above is illustrative).
 
-### Output token budget & chunked generation (PLANNED)
+### Output token budget & chunked generation (implemented)
 
 `max-tokens` (32768, the model's ceiling) is the budget for the **reasoning
 trace + the JSON answer combined**. Generating all files for a multi-entity
-spec in one call overruns it:
+spec in one call overruns it.
 
-> Observed: the full Swagger Petstore (6 entities, 19 endpoints) **parsed fine**
-> at 32K, but the single generation call producing ~34 files never returned
-> (>16 min, no truncation error — it simply could not finish within budget/time).
-
-The single-shot generator does not scale past a few entities. It also breaks the
-reflection loop: `correct()` re-sends *all* files, so corrections overrun the
-budget too.
-
-**Plan — generate per entity:**
+**Solution — generate per entity:**
 
 - One LLM call per entity producing just its slice (`Entity`, `DTO`,
-  `Repository`, `Service`, `Controller`). Small input + output → fits with room
-  for reasoning.
+  `Repository`, `Service`, `Controller`).
 - Shared, entity-independent files (`Application`, `GlobalExceptionHandler`,
-  `ErrorResponse`, `ResourceNotFoundException`) generated once or templated.
+  `ErrorResponse`, `ResourceNotFoundException`) generated programmatically via Java templates.
 - Merge all slices into one `GeneratedCode`, then validate the **whole set
   together** so cross-file references resolve.
-- Correction operates per entity/file so it never re-sends everything.
-- Bonus: smaller calls are faster and can self-correct independently.
+- Correction operates on the whole set (v1) with smaller input/output for stability.
+- Proactive 4s throttling ensures compliance with 15 RPM limits.
 
 ### LLM call timeouts (PLANNED)
 
