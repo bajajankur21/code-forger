@@ -136,7 +136,7 @@ public class AgentOrchestrator implements SmartLifecycle {
                                 + correctionAttempt
                                 + " of "
                                 + MAX_CORRECTION_ATTEMPTS);
-                generatedCode = codeGeneratorAgent.correct(generatedCode, result.errors());
+                generatedCode = codeGeneratorAgent.correct(generatedCode, result.errors(), schema);
                 result = validate(job, generatedCode, correctionAttempt + 1);
             }
 

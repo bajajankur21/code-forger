@@ -84,7 +84,7 @@ class AgentOrchestratorTest {
 
         when(parser.parse(job.getSpecUrl())).thenReturn(SCHEMA);
         when(generator.generate(SCHEMA)).thenReturn(broken);
-        when(generator.correct(broken, errors)).thenReturn(fixed);
+        when(generator.correct(broken, errors, SCHEMA)).thenReturn(fixed);
         when(validator.validate(broken)).thenReturn(ValidationResult.fail(errors));
         when(validator.validate(fixed)).thenReturn(ValidationResult.pass());
 
@@ -95,7 +95,7 @@ class AgentOrchestratorTest {
 
         assertThat(job.getStatus()).isEqualTo(JobStatus.COMPLETE);
         assertThat(job.getFiles()).isEqualTo(fixed.files());
-        verify(generator).correct(broken, errors);
+        verify(generator).correct(broken, errors, SCHEMA);
         verify(broadcaster).broadcast(
                 job.getId(), JobStatus.CORRECTING, "Correcting compile errors, attempt 1 of 3");
         verify(broadcaster).broadcast(
@@ -116,7 +116,7 @@ class AgentOrchestratorTest {
 
         when(parser.parse(job.getSpecUrl())).thenReturn(SCHEMA);
         when(generator.generate(SCHEMA)).thenReturn(code);
-        when(generator.correct(any(GeneratedCode.class), any())).thenReturn(code);
+        when(generator.correct(any(GeneratedCode.class), any(), any(ApiSchema.class))).thenReturn(code);
         when(validator.validate(code)).thenReturn(ValidationResult.fail(errors));
 
         AgentOrchestrator orchestrator =
@@ -128,7 +128,7 @@ class AgentOrchestratorTest {
         assertThat(job.getFiles()).isNull();
         assertThat(job.getError()).contains("Validation failed after 3 correction attempts");
         assertThat(job.getError()).contains("Pet.java:1 '}' expected");
-        verify(generator, times(3)).correct(any(GeneratedCode.class), any());
+        verify(generator, times(3)).correct(any(GeneratedCode.class), any(), any(ApiSchema.class));
         verify(broadcaster).broadcast(job.getId(), JobStatus.FAILED, job.getError());
     }
 }

@@ -46,9 +46,9 @@ class CodeGeneratorAgentTest {
         assertThat(result.files()).containsKey("com/petstore/entity/Pet.java");
         
         // Should contain shared files
-        assertThat(result.files()).containsKey("com/petstore/CodeForgerApplication.java");
+        assertThat(result.files()).containsKey("com/petstore/Application.java");
         assertThat(result.files()).containsKey("com/petstore/exception/GlobalExceptionHandler.java");
-        assertThat(result.files().get("com/petstore/CodeForgerApplication.java")).contains("@SpringBootApplication");
+        assertThat(result.files().get("com/petstore/Application.java")).contains("@SpringBootApplication");
     }
 
     @Test
@@ -121,7 +121,7 @@ class CodeGeneratorAgentTest {
         when(callSpec.chatResponse()).thenReturn(responseOf(json));
 
         CodeGeneratorAgent agent = newAgent(chatClient);
-        GeneratedCode result = agent.correct(previous, errors);
+        GeneratedCode result = agent.correct(previous, errors, SCHEMA);
 
         assertThat(result.files()).containsKey("Pet.java");
         assertThat(prompt.getValue()).contains("class Pet { int id }");

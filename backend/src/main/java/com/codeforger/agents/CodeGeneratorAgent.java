@@ -12,8 +12,11 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 public class CodeGeneratorAgent {
 
     private static final long MIN_INTERVAL_MS = 4000; // 15 RPM -> 4s interval
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final ChatClient chatClient;
     private final RetryTemplate retryTemplate;
@@ -47,8 +51,9 @@ public class CodeGeneratorAgent {
     public GeneratedCode generate(ApiSchema schema) {
         Map<String, String> allFiles = new HashMap<>();
 
-        // 1. Generate shared deterministic files
-        allFiles.putAll(generateSharedFiles(schema.basePackage()));
+        // 1. Generate shared deterministic files (managed by Java, not LLM)
+        Map<String, String> shared = generateSharedFiles(schema.basePackage());
+        allFiles.putAll(shared);
 
         // 2. Generate per-entity slices
         String allEntityNames = schema.entities().stream()
@@ -63,30 +68,55 @@ public class CodeGeneratorAgent {
             String prompt = generatePrompt
                     .replace("{basePackage}", schema.basePackage())
                     .replace("{allEntities}", allEntityNames)
-                    .replace("{entitySchema}", entity.toString())
-                    .replace("{endpoints}", entityEndpoints.toString());
+                    .replace("{entitySchema}", toJson(entity))
+                    .replace("{endpoints}", toJson(entityEndpoints));
 
             GeneratedCode slice = callLlm(prompt);
-            allFiles.putAll(slice.files());
+            
+            // Safety: Don't let AI-generated slices overwrite deterministic shared files
+            slice.files().forEach((filename, content) -> {
+                if (!shared.containsKey(filename)) {
+                    allFiles.put(filename, content);
+                }
+            });
         }
 
         return new GeneratedCode(allFiles);
     }
 
-    public GeneratedCode correct(GeneratedCode previous, List<CompileError> errors) {
-        // For simplicity in v1 chunking, we still correct the whole set if validation fails,
-        // but the smaller input (per-entity slices) makes this much more likely to succeed.
-        // Future optimization: group errors by entity and only re-generate affected slices.
-        String prompt = correctPrompt
-                .replace("{previousCode}", renderFiles(previous.files()))
-                .replace("{errors}", renderErrors(errors));
-        return callLlm(prompt);
+    public GeneratedCode correct(GeneratedCode previous, List<CompileError> errors, ApiSchema schema) {
+        Map<String, String> currentFiles = new HashMap<>(previous.files());
+        
+        // Group errors by entity slice to avoid re-sending the entire project
+        Map<String, List<CompileError>> errorsByEntity = groupErrorsByEntity(errors, schema);
+
+        for (Map.Entry<String, List<CompileError>> entry : errorsByEntity.entrySet()) {
+            String entityName = entry.getKey();
+            List<CompileError> entityErrors = entry.getValue();
+
+            // Identify all files belonging to this entity slice
+            Map<String, String> entitySliceFiles = previous.files().entrySet().stream()
+                    .filter(e -> isFilePartOfEntity(e.getKey(), entityName))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            String prompt = correctPrompt
+                    .replace("{previousCode}", renderFiles(entitySliceFiles))
+                    .replace("{errors}", renderErrors(entityErrors));
+
+            GeneratedCode correctedSlice = callLlm(prompt);
+            currentFiles.putAll(correctedSlice.files());
+        }
+
+        // Final Safety: Always re-overlay shared files so the LLM can't corrupt or delete them
+        currentFiles.putAll(generateSharedFiles(schema.basePackage()));
+
+        return new GeneratedCode(currentFiles);
     }
 
     private GeneratedCode callLlm(String prompt) {
-        throttle();
         String promptWithFormat = prompt + System.lineSeparator() + outputConverter.getFormat();
         return retryTemplate.execute(ctx -> {
+            throttle(); // Proactive check INSIDE retry loop to maintain 15 RPM floor
             try {
                 ChatResponse response = chatClient.prompt()
                         .user(promptWithFormat)
@@ -100,7 +130,7 @@ public class CodeGeneratorAgent {
         });
     }
 
-    private void throttle() {
+    private synchronized void throttle() {
         long now = System.currentTimeMillis();
         long elapsed = now - lastCallTime.get();
         if (elapsed < MIN_INTERVAL_MS) {
@@ -114,19 +144,42 @@ public class CodeGeneratorAgent {
         lastCallTime.set(System.currentTimeMillis());
     }
 
+    private Map<String, List<CompileError>> groupErrorsByEntity(List<CompileError> errors, ApiSchema schema) {
+        Map<String, List<CompileError>> groups = new HashMap<>();
+        for (CompileError error : errors) {
+            String entityName = detectEntityFromFilename(error.file(), schema);
+            groups.computeIfAbsent(entityName, k -> new ArrayList<>()).add(error);
+        }
+        return groups;
+    }
+
+    private String detectEntityFromFilename(String filename, ApiSchema schema) {
+        for (ApiSchema.Entity entity : schema.entities()) {
+            if (isFilePartOfEntity(filename, entity.name())) {
+                return entity.name();
+            }
+        }
+        return "shared"; // Fallback for errors in Application or shared components
+    }
+
+    private boolean isFilePartOfEntity(String filename, String entityName) {
+        String baseName = filename.substring(filename.lastIndexOf('/') + 1);
+        return baseName.startsWith(entityName);
+    }
+
     private Map<String, String> generateSharedFiles(String basePackage) {
         Map<String, String> shared = new HashMap<>();
         String packagePath = basePackage.replace(".", "/");
 
-        // Application.java
-        shared.put(packagePath + "/CodeForgerApplication.java",
+        // Application.java (Generic name, no tool branding)
+        shared.put(packagePath + "/Application.java",
                 "package " + basePackage + ";\n\n" +
                 "import org.springframework.boot.SpringApplication;\n" +
                 "import org.springframework.boot.autoconfigure.SpringBootApplication;\n\n" +
                 "@SpringBootApplication\n" +
-                "public class CodeForgerApplication {\n" +
+                "public class Application {\n" +
                 "    public static void main(String[] args) {\n" +
-                "        SpringApplication.run(CodeForgerApplication.class, args);\n" +
+                "        SpringApplication.run(Application.class, args);\n" +
                 "    }\n" +
                 "}\n");
 
@@ -176,6 +229,14 @@ public class CodeGeneratorAgent {
                 "}\n");
 
         return shared;
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            return obj.toString();
+        }
     }
 
     private static String renderFiles(Map<String, String> files) {
