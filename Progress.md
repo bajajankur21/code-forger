@@ -18,7 +18,7 @@ Read at the start of every session.
 
 ### Step 15.6 — Chunked Per-Entity Generation & Rate Limiting
 - Status: DONE
-- Notes: Refactored CodeGeneratorAgent to generate code one entity at a time, preventing token budget overruns. Implemented deterministic templating for shared boilerplate (Application, Exceptions). Added a proactive 4s throttler (15 RPM) to prevent Google AI rate limiting. Verified with refactored unit tests.
+- Notes: Refactored CodeGeneratorAgent to generate and correct code one entity slice at a time, ensuring scalability for large specs. Implemented deterministic templating for shared boilerplate (Application, Exceptions) with authoritative re-overlay logic. Added a proactive 4s throttler (15 RPM) inside the retry loop. Resolved branding leaks and used JSON for prompt context. Verified with unit tests.
 - Completed: 2026-06-01
 
 ### Step 15.5 — Hugging Face Spaces Deployment & Security

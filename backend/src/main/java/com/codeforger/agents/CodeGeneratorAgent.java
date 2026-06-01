@@ -12,6 +12,8 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 @Component
 public class CodeGeneratorAgent {
 
+    private static final Logger log = LoggerFactory.getLogger(CodeGeneratorAgent.class);
     private static final long MIN_INTERVAL_MS = 4000; // 15 RPM -> 4s interval
     private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -61,6 +64,7 @@ public class CodeGeneratorAgent {
                 .collect(Collectors.joining(", "));
 
         for (ApiSchema.Entity entity : schema.entities()) {
+            log.info("Generating code slice for entity: {}", entity.name());
             List<ApiSchema.Endpoint> entityEndpoints = schema.endpoints().stream()
                     .filter(e -> e.entity().equalsIgnoreCase(entity.name()))
                     .toList();
@@ -92,6 +96,14 @@ public class CodeGeneratorAgent {
 
         for (Map.Entry<String, List<CompileError>> entry : errorsByEntity.entrySet()) {
             String entityName = entry.getKey();
+            
+            // Skip corrections for shared files (deterministic) or errors that couldn't be mapped
+            if ("shared".equals(entityName)) {
+                log.info("Skipping LLM correction for shared deterministic files");
+                continue;
+            }
+
+            log.info("Correcting code slice for entity: {} ({} error(s))", entityName, entry.getValue().size());
             List<CompileError> entityErrors = entry.getValue();
 
             // Identify all files belonging to this entity slice
@@ -163,8 +175,12 @@ public class CodeGeneratorAgent {
     }
 
     private boolean isFilePartOfEntity(String filename, String entityName) {
-        String baseName = filename.substring(filename.lastIndexOf('/') + 1);
-        return baseName.startsWith(entityName);
+        String baseName = filename.substring(filename.lastIndexOf('/') + 1).replace(".java", "");
+        return baseName.equals(entityName) || 
+               baseName.equals(entityName + "Controller") ||
+               baseName.equals(entityName + "Service") ||
+               baseName.equals(entityName + "Repository") ||
+               baseName.equals(entityName + "DTO");
     }
 
     private Map<String, String> generateSharedFiles(String basePackage) {
