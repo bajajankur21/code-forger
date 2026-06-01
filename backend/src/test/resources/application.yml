@@ -1,0 +1,6 @@
+spring:
+  ai:
+    google:
+      genai:
+        api-key: ci-dummy-key
+APP_SECRET_PASSCODE: ci-dummy-passcode
