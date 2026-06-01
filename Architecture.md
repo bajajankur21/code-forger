@@ -48,7 +48,7 @@ GitHub Repositories:
 ├── code-forger-shell              → GitHub Pages (Shell/Host)
 ├── code-forger-agent-console      → GitHub Pages (MFE 1)
 ├── code-forger-code-vault         → GitHub Pages (MFE 2)
-└── code-forger-backend            → Railway free tier
+└── code-forger-backend            → Hugging Face Spaces (Docker SDK)
 ```
 
 ---
@@ -158,7 +158,7 @@ jobs:
 - **LLM:** Gemma 4 31B via Google AI Studio free tier
 - **Real-time:** Spring WebSocket (STOMP over SockJS)
 - **Queue:** In-memory queue (ConcurrentLinkedQueue)
-- **Deployment:** Railway free tier
+- **Deployment:** Hugging Face Spaces (Free CPU Basic)
 - **Language:** Java 21
 
 ### Package Structure
@@ -439,14 +439,14 @@ Google AI Studio free tier covers this comfortably for development.
 | Shell App | GitHub Pages | Free |
 | Agent Console MFE | GitHub Pages | Free |
 | Code Vault MFE | GitHub Pages | Free |
-| Spring Boot Backend | Railway free tier | Free |
+| Spring Boot Backend | Hugging Face Spaces | Free |
 | LLM (Gemma 4 31B) | Google AI Studio | Free tier |
 
 **Total infrastructure cost: $0/month**
 
 ### Backend Containerization (The Fat-Jar Classpath Solution)
 
-Deploying the Spring Boot backend on a PaaS (like Railway) presents two challenges for the in-process `JavaCompiler`:
+Deploying the Spring Boot backend on a PaaS (like Hugging Face Spaces) presents two challenges for the in-process `JavaCompiler`:
 1. It requires a JDK, not a JRE.
 2. It requires an explicit `-classpath` containing all dependencies. When run as `java -jar app.jar`, `System.getProperty("java.class.path")` only contains the launcher JAR, causing the compiler to fail to find Spring/JPA symbols.
 
@@ -454,9 +454,15 @@ Deploying the Spring Boot backend on a PaaS (like Railway) presents two challeng
 `java -cp "application/BOOT-INF/classes:application/BOOT-INF/lib/*" ...`
 This expands the dependencies directly onto `java.class.path`, allowing the `ValidatorAgent` to function identically to local `mvn spring-boot:run` execution.
 
+**Hugging Face Specifics:**
+- **Metadata:** A root `README.md` with YAML metadata is required to trigger the Docker SDK.
+- **Port:** The container must listen on port `7860`.
+- **User:** The container runs as UID `1000`.
+- **Memory:** CPU Basic tier provides **16GB RAM**, enabling a large `-Xmx` for stable AI generation and compilation.
+
 ### Continuous Deployment (CD)
 
-Backend deployments are automated via GitHub Actions (`cd.yml`). On push to `master` (and after `ci.yml` passes), the workflow uses a Railway deployment action or CLI, authenticated via a repository secret (`RAILWAY_TOKEN`), to build and roll out the new Docker container.
+Backend deployments are automated via GitHub Actions (`cd.yml`). On push to `master` (and after `ci.yml` passes), the workflow pushes the codebase to the Hugging Face Space repository, which triggers an automatic build and rollout of the new Docker container.
 
 ### Authentication & CORS
 
