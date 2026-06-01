@@ -28,7 +28,7 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("https://*.github.io", "http://localhost:*"));
+        config.setAllowedOriginPatterns(List.of("https://*.github.io", "https://*.hf.space", "http://localhost:*"));
         config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         // allowCredentials(true) intentionally omitted to tighten security

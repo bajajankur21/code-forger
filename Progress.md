@@ -8,17 +8,28 @@ Read at the start of every session.
 
 ## 📊 Overall Progress
 
-**Steps completed:** 15.5 / 25
+**Steps completed:** 16 / 25
 **Current phase:** Deployment & Shell setup
-**Next step:** Step 15.5 — Backend Deployment Architecture & Security
+**Next step:** Step 16 — Shell app + Module Federation config
 
 ---
 
 ## ✅ Completed Steps
 
-### Step 15.5 — Backend Deployment & Security Design
+### Step 15.5 — Hugging Face Spaces Deployment & Security
 - Status: DONE
-- Notes: Designed the multi-stage Dockerfile strategy for exploded classpath resolution on PaaS, defined the passcode-based authentication scheme for REST/WebSockets, and mapped the CD workflow via GitHub Actions.
+- Notes: Configured root Dockerfile for UID 1000 and port 7860, created root README.md with HF metadata, updated SecurityConfig and WebSocketConfig for HF CORS origins, migrated CD workflow to push HEAD:main to Hugging Face Spaces, and removed obsolete railway.json.
+- Completed: 2026-05-31
+
+### Step 15 — Orchestrator + reflection loop + WebSocket broadcasting
+- Status: DONE
+- Files: `orchestrator/AgentOrchestrator.java`, updated `api/GeneratorController.java`, updated `pom.xml`, tests `orchestrator/AgentOrchestratorTest.java` and `api/GeneratorControllerTest.java`.
+- Notes:
+  - `AgentOrchestrator` is a Spring `SmartLifecycle` component with one daemon worker thread. It polls `JobQueue`, runs Parser → CodeGenerator → Validator, and stores completed files/errors back on `GenerationJob`.
+  - Owns the reflection loop: initial validation, then up to 3 correction attempts via `codeGenerator.correct(previous, errors)`, then `FAILED` with compiler diagnostics if still invalid.
+  - Broadcasts `QUEUED`, `PARSING`, `GENERATING`, `VALIDATING`, `CORRECTING`, `COMPLETE`, and `FAILED` through `StatusBroadcaster`; removed the temporary `QUEUED` broadcast from `GeneratorController`.
+  - Added `codeforger.orchestrator.enabled=false` in controller tests so the 202 Accepted behavior remains deterministic while production defaults to enabled.
+  - Added Surefire `-javaagent` config for Mockito 5.20.0 because Fedora/Temurin Java 21 blocks Mockito self-attachment. `JAVA_HOME=/usr/lib/jvm/java-21-temurin-jdk mvn verify` is green: 19 tests.
 - Completed: 2026-05-30
 
 ### Step 1 — Monorepo folder structure
@@ -103,12 +114,6 @@ Read at the start of every session.
   - Broadcasts `QUEUED`, `PARSING`, `GENERATING`, `VALIDATING`, `CORRECTING`, `COMPLETE`, and `FAILED` through `StatusBroadcaster`; removed the temporary `QUEUED` broadcast from `GeneratorController`.
   - Added `codeforger.orchestrator.enabled=false` in controller tests so the 202 Accepted behavior remains deterministic while production defaults to enabled.
   - Added Surefire `-javaagent` config for Mockito 5.20.0 because Fedora/Temurin Java 21 blocks Mockito self-attachment. `JAVA_HOME=/usr/lib/jvm/java-21-temurin-jdk mvn verify` is green: 19 tests.
-
-## 🔄 Current Step
-
-### Step 15.5 — Backend Deployment Architecture & Security
-- Status: IN PROGRESS
-- What to build: Implement the `Dockerfile` for exploded classpath deployment, `railway.json` for platform config, GitHub Actions `cd.yml` for automated deployment, and the passcode-based `SecurityConfig` (REST Filter + WebSocket Interceptor).
 
 ## ⏳ Remaining Steps
 

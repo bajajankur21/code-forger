@@ -11,7 +11,7 @@ Read PROGRESS.md immediately after to know exactly where to resume.
 Code Forger is a multi-agent AI system with:
 - 3 separate React MFE apps deployed on GitHub Pages
   using Webpack Module Federation
-- 1 Spring Boot backend deployed on Railway
+- 1 Spring Boot backend deployed on Hugging Face Spaces
 - A 3-agent AI pipeline (Parser -> Code Generator -> Validator)
   using Spring AI + Gemma 4 31B via Google AI Studio
 - Real-time WebSocket streaming of agent status
@@ -66,7 +66,7 @@ Each phase below specifies which repo is active.
 
 | Repo | Purpose | Deployment |
 |---|---|---|
-| code-forger-backend | Spring Boot API + Agents | Railway |
+| code-forger-backend | Spring Boot API + Agents | Hugging Face Spaces |
 | code-forger-shell | MFE Host/Shell | GitHub Pages |
 | code-forger-agent-console | MFE 1 - Terminal UI | GitHub Pages |
 | code-forger-code-vault | MFE 2 - Code Display | GitHub Pages |
